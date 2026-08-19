@@ -39,13 +39,52 @@ jobs:
         run: npm run test:coverage
 
       # ---- build ----
-      # Placeholder env — this build only proves the app compiles
-      # cleanly; the real deployable artifact (with the production
-      # VITE_API_BASE_URL baked in) is built separately, as a Docker
-      # image, in cdis-deployment.
+      # Real production values, not placeholders: VITE_API_BASE_URL is
+      # a relative path (see cdis-deployment's reverse proxy, which
+      # routes /api/* to the backend on the same origin) — resolves
+      # correctly regardless of the frontend's actual public URL, so
+      # this Dockerfile's build args are its real, permanent value.
       - name: Build
         run: npm run build
         env:
           VITE_APP_NAME: CDIS
           VITE_APP_ENV: production
-          VITE_API_BASE_URL: http://localhost:4000/api/v1
+          VITE_API_BASE_URL: /api/v1
+
+  # Only runs after every quality gate above passes, and only for
+  # pushes to main (never for PRs from forks, which can't safely hold
+  # package-write credentials) — build once here, deploy the resulting
+  # artifact everywhere else. Tagged by commit SHA, never only `latest`,
+  # so a specific version can always be pinned and rolled back to.
+  build-and-push:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            VITE_APP_NAME=CDIS
+            VITE_APP_ENV=production
+            VITE_API_BASE_URL=/api/v1
+          tags: |
+            ghcr.io/workgaurav1/cdis-frontend:${{ github.sha }}
+            ghcr.io/workgaurav1/cdis-frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
