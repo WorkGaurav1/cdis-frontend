@@ -73,12 +73,20 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # QEMU lets buildx cross-compile for arm64 on this (amd64) runner
+      # — the target server's CPU architecture isn't locked in yet
+      # (Oracle Cloud Always Free may land on Ampere ARM or x86
+      # depending on regional capacity), so both are built and pushed
+      # as one multi-platform image rather than guessing.
+      - uses: docker/setup-qemu-action@v3
+
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/build-push-action@v6
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           build-args: |
             VITE_APP_NAME=CDIS
             VITE_APP_ENV=production
