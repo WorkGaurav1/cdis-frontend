@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# lint -> type check -> tests -> coverage -> build.
+# One job, ordered steps -> the order above is guaranteed by construction.
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ---- lint ----
+      - name: Lint
+        run: npm run lint
+
+      # ---- type check ----
+      - name: Type-check
+        run: npx tsc -b
+
+      # ---- tests ----
+      - name: Tests
+        run: npm run test
+
+      # ---- coverage ----
+      - name: Coverage
+        run: npm run test:coverage
+
+      # ---- build ----
+      # Placeholder env — this build only proves the app compiles
+      # cleanly; the real deployable artifact (with the production
+      # VITE_API_BASE_URL baked in) is built separately, as a Docker
+      # image, in cdis-deployment.
+      - name: Build
+        run: npm run build
+        env:
+          VITE_APP_NAME: CDIS
+          VITE_APP_ENV: production
+          VITE_API_BASE_URL: http://localhost:4000/api/v1
