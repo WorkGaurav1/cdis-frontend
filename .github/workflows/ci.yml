@@ -103,10 +103,12 @@ jobs:
       # by hand — see cdis-deployment's README) — until then this step is
       # a no-op so CI stays green while the server/runner aren't set up.
       - name: Trigger deploy
-        if: ${{ secrets.DEPLOY_DISPATCH_TOKEN != '' }}
+        if: ${{ env.DEPLOY_DISPATCH_TOKEN != '' }}
+        env:
+          DEPLOY_DISPATCH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
         run: |
           curl -sf -X POST \
-            -H "Authorization: Bearer ${{ secrets.DEPLOY_DISPATCH_TOKEN }}" \
+            -H "Authorization: Bearer $DEPLOY_DISPATCH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/workgaurav1/cdis-deployment/dispatches \
             -d '{"event_type":"deploy-frontend","client_payload":{"version":"${{ github.sha }}"}}'
