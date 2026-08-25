@@ -22,8 +22,22 @@ RUN npm run build
 
 # ---- runtime ----
 FROM nginx:1.29-alpine AS runtime
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Runs as the (already-present, base-image) nginx user rather than root.
+# setcap lets that unprivileged user still bind port 80 — the alternative,
+# moving to an unprivileged port, would also require updating the
+# reverse proxy's upstream target in the sibling cdis-deployment repo.
+RUN apk add --no-cache libcap && \
+    setcap 'cap_net_bind_service=+ep' /usr/sbin/nginx && \
+    apk del libcap
+
+COPY --from=build --chown=nginx:nginx /app/dist /usr/share/nginx/html
+COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
+
+RUN touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid /var/cache/nginx
+
+USER nginx
 
 EXPOSE 80
 

@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-# lint -> type check -> tests -> coverage -> build.
+# lint -> type check -> tests -> coverage -> build -> security checks.
 # One job, ordered steps -> the order above is guaranteed by construction.
 jobs:
   ci:
@@ -51,6 +51,10 @@ jobs:
           VITE_APP_ENV: production
           VITE_API_BASE_URL: /api/v1
 
+      # ---- security checks ----
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
   # Only runs after every quality gate above passes, and only for
   # pushes to main (never for PRs from forks, which can't safely hold
   # package-write credentials) — build once here, deploy the resulting
@@ -63,6 +67,12 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Job-level, not step-level: a step's own env: block isn't visible
+    # to that same step's if: condition (only workflow/job-level env,
+    # or env from steps earlier in the job, are) — this has to be here
+    # for the "Trigger deploy" step's if: to actually see it.
+    env:
+      DEPLOY_DISPATCH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
 
     steps:
       - uses: actions/checkout@v4
@@ -104,8 +114,6 @@ jobs:
       # a no-op so CI stays green while the server/runner aren't set up.
       - name: Trigger deploy
         if: ${{ env.DEPLOY_DISPATCH_TOKEN != '' }}
-        env:
-          DEPLOY_DISPATCH_TOKEN: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
         run: |
           curl -sf -X POST \
             -H "Authorization: Bearer $DEPLOY_DISPATCH_TOKEN" \
